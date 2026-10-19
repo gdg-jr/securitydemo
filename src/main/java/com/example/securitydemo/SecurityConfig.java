@@ -3,6 +3,7 @@ package com.example.securitydemo;
 import com.securitydemo.jwt.AuthEntryPointJWT;
 import com.securitydemo.jwt.AuthTokenFilter;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -43,7 +44,7 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         ///this is to remove the authentication for the h2 database login poge
         http.authorizeHttpRequests(authorizeRequests -> authorizeRequests.requestMatchers("/h2-console/**").permitAll()
-                .requestMatchers("/api/signin").permitAll()
+                .requestMatchers("/signin").permitAll()
                 .anyRequest().authenticated());
          ///Form-based login (the /login page). Uncomment to enable it again, for testing.
          //http.formLogin(Customizer.withDefaults());
@@ -63,25 +64,32 @@ public class SecurityConfig {
         return http.build();
     }
 
-    ///This is to create in-memory Authentication
+
     @Bean
-    public UserDetailsService userDetailsService(){
-
-        UserDetails user1 = User.withUsername("user1")
-                .password(encoder().encode("password1"))
-                .roles("USER")
-                .build();
-        UserDetails user2 = User.withUsername("admin1")
-                .password(encoder().encode("password2"))
-                .roles("ADMIN")
-                .build();
-
-        JdbcUserDetailsManager userDetailsManager = new JdbcUserDetailsManager(dataSource);
-        userDetailsManager.createUser(user1);
-        userDetailsManager.createUser(user2);
-        return userDetailsManager;
-        //return new InMemoryUserDetailsManager(user1,user2);
+    public UserDetailsService userDetailsService(DataSource dataSource) {
+        return new JdbcUserDetailsManager(dataSource);
     }
+    /// Creating the database and then inserting the userdetails in there.
+    @Bean
+    public CommandLineRunner initData(UserDetailsService userDetailsService) {
+        return args -> {
+            JdbcUserDetailsManager manager = (JdbcUserDetailsManager) userDetailsService;
+            UserDetails user1 = User.withUsername("user1")
+                    .password(encoder().encode("password1"))
+                    .roles("USER")
+                    .build();
+            UserDetails admin = User.withUsername("admin")
+                    //.password(encoder().encode("adminPass"))
+                    .password(encoder().encode("adminPass"))
+                    .roles("ADMIN")
+                    .build();
+
+            JdbcUserDetailsManager userDetailsManager = new JdbcUserDetailsManager(dataSource);
+            userDetailsManager.createUser(user1);
+            userDetailsManager.createUser(admin);
+        };
+    }
+
 
     @Bean
     public PasswordEncoder encoder (){

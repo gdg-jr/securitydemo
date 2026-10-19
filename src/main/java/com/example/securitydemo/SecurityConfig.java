@@ -1,23 +1,26 @@
 package com.example.securitydemo;
 
+import com.securitydemo.jwt.AuthEntryPointJWT;
+import com.securitydemo.jwt.AuthTokenFilter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.provisioning.JdbcUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import javax.sql.DataSource;
 
@@ -28,23 +31,35 @@ public class SecurityConfig {
 
     @Autowired
     DataSource dataSource;
+    @Autowired
+    private AuthEntryPointJWT unAuth;
+
+    @Bean
+    public AuthTokenFilter authenticationJwtTokenFilter(){
+        return new AuthTokenFilter();
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         ///this is to remove the authentication for the h2 database login poge
-        http.authorizeHttpRequests(requests -> requests.requestMatchers("/h2-console/**").permitAll()
+        http.authorizeHttpRequests(authorizeRequests -> authorizeRequests.requestMatchers("/h2-console/**").permitAll()
+                .requestMatchers("/api/signin").permitAll()
                 .anyRequest().authenticated());
-
-         //Form-based login (the /login page). Uncomment to enable it again, for testing.
+         ///Form-based login (the /login page). Uncomment to enable it again, for testing.
          //http.formLogin(Customizer.withDefaults());
-
-        http.httpBasic(Customizer.withDefaults());                 // HTTP Basic authentication (active)
+        ///This is the basic popup of the browser.
+        //http.httpBasic(Customizer.withDefaults());                 // HTTP Basic authentication (active)
         ///this is to hide the cookies
-        http.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS)); // optional
-        http.csrf(csrf -> csrf.disable());                         // optional, for Postman testing
+        http.sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+        /// optional, for Postman testing
+        http.csrf(AbstractHttpConfigurer::disable);
+        ///To point the code to go the custom defined Unauthorised handler in place of the default one.
+        http.exceptionHandling(exception->exception.authenticationEntryPoint(unAuth));
         /// For getting the h2 database frame come up.
         http.headers(headers->
-                headers.frameOptions(frameOptions -> frameOptions.sameOrigin()));
+                headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin));
+        ///Adding the custom filter to autheticate user before going into the usernamePasswordAuthenticateFilter default class.
+        http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
